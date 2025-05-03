@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{Context, Error};
 
-use clap::{Parser, arg, command};
+use clap::{Parser, ValueEnum, arg, command};
 
 use rayon::prelude::*;
 
@@ -25,10 +25,6 @@ struct Cli {
     /// A folder to write resulting GOD files to
     dest_dir: PathBuf,
 
-    #[arg(long, hide = true)]
-    #[deprecated(since = "1.5.0", note = "now uses a built-in database")]
-    offline: bool,
-
     /// Do not convert anything, just print the title info
     #[arg(long)]
     dry_run: bool,
@@ -37,27 +33,49 @@ struct Cli {
     #[arg(long, value_name = "TITLE")]
     game_title: Option<String>,
 
-    /// Trim off unused space from the ISO image
-    #[arg(long)]
-    trim: bool,
+    /// Whether to trim off unused space from the ISO image;
+    /// passing no --trim flag at all is equivalent to "from-end"
+    #[arg(
+        verbatim_doc_comment,
+        long,
+        value_enum,
+        require_equals = true,
+        num_args = 0..=1,
+        default_missing_value = "from-end"
+    )]
+    trim: Option<TrimMode>,
 
     /// Number of worker threads to use
-    #[arg(long, short = 'j', value_name = "N")]
-    num_threads: Option<usize>,
+    #[arg(long, short = 'j', value_name = "N", default_value_t = 1)]
+    num_threads: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default, ValueEnum)]
+enum TrimMode {
+    /// (default) Trim unallocated space from the end
+    #[default]
+    FromEnd,
+
+    /// Trim nothing
+    None,
+    // TODO
+    // FullRebuild,
 }
 
 fn main() -> Result<(), Error> {
     let args = Cli::parse();
 
-    #[allow(deprecated)]
-    if args.offline {
+    if args.num_threads == 1 {
         eprintln!(
-            "the --offline flag is deprecated: the tool now has a built-in title database, so it is always offline"
+            "The default number of threads was changed to 1 because of the problems witn Windows and/or hard drives."
+        );
+        eprintln!(
+            "If you don't use Windows or use and SSD, might be worth increasing it with the -j <N> flag!"
         );
     }
 
     rayon::ThreadPoolBuilder::new()
-        .num_threads(args.num_threads.unwrap_or(0))
+        .num_threads(args.num_threads)
         .build_global()?;
 
     println!("extracting ISO metadata");
@@ -92,7 +110,7 @@ fn main() -> Result<(), Error> {
         return Ok(());
     }
 
-    let data_size = if args.trim {
+    let data_size = if args.trim.unwrap_or_default() == TrimMode::FromEnd {
         source_iso.get_max_used_prefix_size()
     } else {
         let root_offset = source_iso.volume_descriptor.root_offset;
