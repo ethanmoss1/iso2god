@@ -1,5 +1,7 @@
 # iso2god-rs
-Original by https://github.com/iliazeus, rewritten in rust by https://github.com/iliazeus. Nix flake added by myself
+Original by https://github.com/iliazeus. 
+Rewritten in rust by https://github.com/iliazeus.
+Nix flake added by https://github.com/ethanmoss1
 
 A tool to convert Xbox 360 and original Xbox ISOs into an Xbox 360 compatible Games-On-Demand file format
 
